@@ -1,0 +1,20 @@
+{
+  "name": "kyngpyn-trade-control-system",
+  "version": "1.0.0",
+  "description": "KYNGPYN TRADE CONTROL SYSTEM™ — Multi-Agent Trading Operating System (simulation / paper / live)",
+  "type": "module",
+  "main": "src/index.js",
+  "engines": {
+    "node": ">=18.17.0"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "start:sim": "TRADING_MODE=simulation node src/index.js",
+    "start:paper": "TRADING_MODE=paper node src/index.js",
+    "start:live": "TRADING_MODE=live node src/index.js",
+    "test": "node --test \"test/*.test.js\"",
+    "pm2": "pm2 start ecosystem.config.cjs"
+  },
+  "license": "UNLICENSED",
+  "private": true
+}
