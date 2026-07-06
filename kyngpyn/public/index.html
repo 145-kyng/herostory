@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KYNGPYN TRADE CONTROL SYSTEM</title>
+<style>
+  :root {
+    --bg: #0b0e14; --panel: #131824; --panel2: #1a2130; --border: #232c3f;
+    --text: #d7dee9; --muted: #7d8aa0; --green: #2ecc8f; --red: #ff5d6c;
+    --amber: #ffb454; --blue: #58a6ff; --purple: #b58cff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font: 14px/1.45 'Segoe UI', system-ui, sans-serif; padding: 16px; }
+  header { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 16px; }
+  h1 { font-size: 18px; letter-spacing: 2px; color: var(--blue); }
+  h1 span { color: var(--purple); }
+  .badge { padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; border: 1px solid var(--border); }
+  .badge.sim { color: var(--blue); border-color: var(--blue); }
+  .badge.paper { color: var(--amber); border-color: var(--amber); }
+  .badge.live { color: var(--red); border-color: var(--red); animation: pulse 1.5s infinite; }
+  .badge.ok { color: var(--green); border-color: var(--green); }
+  .badge.bad { color: var(--red); border-color: var(--red); }
+  @keyframes pulse { 50% { opacity: 0.5; } }
+  .controls { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
+  button { background: var(--panel2); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 7px 14px; cursor: pointer; font-size: 13px; }
+  button:hover { border-color: var(--blue); }
+  button.danger { background: #3a1220; color: var(--red); border-color: var(--red); font-weight: 700; }
+  button.warn { color: var(--amber); border-color: var(--amber); }
+  button.good { color: var(--green); border-color: var(--green); }
+  button.listening { background: #103a2a; color: var(--green); border-color: var(--green); animation: pulse 1s infinite; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 14px; }
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px; }
+  .panel h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); margin-bottom: 10px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; color: var(--muted); font-weight: 600; padding: 4px 6px; border-bottom: 1px solid var(--border); }
+  td { padding: 4px 6px; border-bottom: 1px solid rgba(35,44,63,.5); }
+  .long { color: var(--green); font-weight: 600; }
+  .short { color: var(--red); font-weight: 600; }
+  .pos { color: var(--green); } .neg { color: var(--red); }
+  .stat-row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .stat { background: var(--panel2); border-radius: 8px; padding: 8px 12px; min-width: 105px; }
+  .stat .v { font-size: 18px; font-weight: 700; }
+  .stat .l { font-size: 11px; color: var(--muted); text-transform: uppercase; }
+  .vote { display: flex; justify-content: space-between; padding: 5px 8px; margin: 3px 0; background: var(--panel2); border-radius: 6px; font-size: 12.5px; }
+  .vote .APPROVE { color: var(--green); } .vote .REJECT { color: var(--red); } .vote .ABSTAIN { color: var(--amber); }
+  .feed { max-height: 260px; overflow-y: auto; font-size: 12px; }
+  .feed div { padding: 3px 0; border-bottom: 1px solid rgba(35,44,63,.4); color: var(--muted); }
+  .feed b { color: var(--text); }
+  .bar { height: 6px; background: var(--panel2); border-radius: 3px; overflow: hidden; margin-top: 3px; }
+  .bar i { display: block; height: 100%; background: var(--blue); }
+  #toast { position: fixed; right: 16px; bottom: 16px; display: flex; flex-direction: column; gap: 8px; z-index: 10; }
+  .toastMsg { background: var(--panel2); border: 1px solid var(--border); border-left: 4px solid var(--blue); padding: 10px 14px; border-radius: 8px; max-width: 340px; }
+  .toastMsg.critical { border-left-color: var(--red); }
+  .toastMsg.warning { border-left-color: var(--amber); }
+  .muted { color: var(--muted); }
+  .wide { grid-column: 1 / -1; }
+</style>
+</head>
+<body>
+<header>
+  <h1>KYNGPYN <span>TRADE CONTROL</span> SYSTEM™</h1>
+  <span id="modeBadge" class="badge sim">—</span>
+  <span id="healthBadge" class="badge ok">connecting…</span>
+  <span id="safetyBadge" class="badge ok">safety —</span>
+  <div class="controls">
+    <button id="voiceBtn" title="Say: 'Doris scan markets', 'Doris stop trading'…">🎤 Doris</button>
+    <button class="good" onclick="cmd('scan')">Scan Now</button>
+    <button class="warn" id="pauseBtn" onclick="togglePause()">Pause</button>
+    <button onclick="cmd('close_all')">Close All</button>
+    <button class="danger" id="killBtn" onclick="toggleKill()">⛔ KILL SWITCH</button>
+  </div>
+</header>
+
+<div class="grid">
+  <div class="panel wide">
+    <h2>Performance</h2>
+    <div class="stat-row" id="perf"></div>
+  </div>
+
+  <div class="panel">
+    <h2>Scanner Output <span id="scanMeta" class="muted"></span></h2>
+    <table id="scanTable">
+      <thead><tr><th>Symbol</th><th>Dir</th><th>Conf</th><th>Regime</th><th>RSI</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <div class="panel">
+    <h2>Agent Council — Latest Votes</h2>
+    <div id="votes" class="muted">No council sessions yet.</div>
+  </div>
+
+  <div class="panel">
+    <h2>Open Positions</h2>
+    <table id="posTable">
+      <thead><tr><th>Symbol</th><th>Dir</th><th>Units</th><th>Entry</th><th>SL</th><th>TP</th><th>uP&L</th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <div id="noPos" class="muted">No open positions.</div>
+  </div>
+
+  <div class="panel">
+    <h2>Decisions</h2>
+    <div id="decisions" class="feed"></div>
+  </div>
+
+  <div class="panel">
+    <h2>Journal / Audit Trail</h2>
+    <div id="journal" class="feed"></div>
+  </div>
+
+  <div class="panel">
+    <h2>System Health &amp; Learning</h2>
+    <div id="health"></div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let state = null;
+
+function fmt(n, d = 2) { return n == null ? '—' : Number(n).toFixed(d); }
+function pnlClass(v) { return v >= 0 ? 'pos' : 'neg'; }
+
+async function cmd(action, args = {}) {
+  const res = await fetch('/api/command', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action, args }),
+  });
+  const data = await res.json();
+  toast(data.message || action, data.ok ? 'info' : 'warning');
+  refresh();
+  return data;
+}
+
+function toggleKill() {
+  if (!state) return;
+  if (state.safety.killSwitch) { cmd('release_kill_switch'); return; }
+  if (confirm('Engage KILL SWITCH? All positions will be closed and trading halted.')) cmd('kill_switch');
+}
+function togglePause() { if (state) cmd(state.safety.paused ? 'resume' : 'pause'); }
+
+function toast(msg, severity = 'info') {
+  const div = document.createElement('div');
+  div.className = 'toastMsg ' + severity;
+  div.textContent = msg;
+  $('toast').appendChild(div);
+  setTimeout(() => div.remove(), 6000);
+}
+
+function render() {
+  if (!state) return;
+  const s = state;
+  const mb = $('modeBadge');
+  mb.textContent = s.mode.toUpperCase();
+  mb.className = 'badge ' + (s.mode === 'live' ? 'live' : s.mode === 'paper' ? 'paper' : 'sim');
+
+  const md = s.health.marketData || {};
+  const hb = $('healthBadge');
+  const healthy = md.source === 'simulated' || md.connected;
+  hb.textContent = `${md.source || '?'} feed ${healthy ? '● online' : '○ down'}`;
+  hb.className = 'badge ' + (healthy ? 'ok' : 'bad');
+
+  const sb = $('safetyBadge');
+  if (s.safety.killSwitch) { sb.textContent = 'KILL SWITCH ON'; sb.className = 'badge bad'; }
+  else if (s.safety.paused) { sb.textContent = 'PAUSED'; sb.className = 'badge bad'; }
+  else if (!s.safety.tradingAllowed) { sb.textContent = 'SAFETY LOCKOUT'; sb.className = 'badge bad'; }
+  else { sb.textContent = 'trading allowed'; sb.className = 'badge ok'; }
+  $('killBtn').textContent = s.safety.killSwitch ? '✅ RELEASE KILL SWITCH' : '⛔ KILL SWITCH';
+  $('pauseBtn').textContent = s.safety.paused ? 'Resume' : 'Pause';
+
+  const p = s.performance || {};
+  $('perf').innerHTML = [
+    ['Balance', fmt(s.balance), ''],
+    ['Total P&L', fmt(p.totalPnl), pnlClass(p.totalPnl || 0)],
+    ['Unrealized', fmt(p.unrealizedPnl), pnlClass(p.unrealizedPnl || 0)],
+    ['Daily P&L', fmt(s.safety.dailyPnl), pnlClass(s.safety.dailyPnl || 0)],
+    ['Win rate', p.winRate != null ? (p.winRate * 100).toFixed(0) + '%' : '—', ''],
+    ['Trades', p.totalTrades ?? 0, ''],
+    ['Profit factor', p.profitFactor ?? '—', ''],
+    ['Consec. losses', s.safety.consecutiveLosses, s.safety.consecutiveLosses > 2 ? 'neg' : ''],
+    ['Uptime', Math.floor(s.uptimeSec / 3600) + 'h' + Math.floor((s.uptimeSec % 3600) / 60) + 'm', ''],
+  ].map(([l, v, c]) => `<div class="stat"><div class="v ${c}">${v}</div><div class="l">${l}</div></div>`).join('');
+
+  const sc = s.scanner || {};
+  $('scanMeta').textContent = sc.lastCycleAt ? `· cycle ${sc.cycleCount} · ${new Date(sc.lastCycleAt).toLocaleTimeString()}` : '· waiting…';
+  $('scanTable').querySelector('tbody').innerHTML = (sc.results || []).slice(0, 14).map((r) => `
+    <tr><td>${r.symbol}</td>
+    <td class="${r.direction === 'LONG' ? 'long' : r.direction === 'SHORT' ? 'short' : 'muted'}">${r.direction}</td>
+    <td>${r.confidence}<div class="bar"><i style="width:${r.confidence}%"></i></div></td>
+    <td class="muted">${(r.regime || '').replace('_', ' ')}</td>
+    <td class="muted">${r.rsi ?? '—'}</td></tr>`).join('');
+
+  const v = (s.votes || [])[0];
+  $('votes').innerHTML = v ? `
+    <div class="muted" style="margin-bottom:6px">${v.signal.symbol} ${v.signal.direction} · scanner ${v.signal.confidence} · ${new Date(v.at).toLocaleTimeString()}</div>
+    ${v.votes.map((x) => `<div class="vote"><span>${x.agent}</span><span class="${x.vote}">${x.vote} (${x.score})</span></div>
+      <div class="muted" style="font-size:11.5px;padding:0 8px 4px">${x.reason}</div>`).join('')}`
+    : 'No council sessions yet.';
+
+  const pos = s.positions || [];
+  $('noPos').style.display = pos.length ? 'none' : 'block';
+  $('posTable').querySelector('tbody').innerHTML = pos.map((t) => `
+    <tr><td>${t.symbol}</td><td class="${t.direction === 'LONG' ? 'long' : 'short'}">${t.direction}</td>
+    <td>${t.units}</td><td>${fmt(t.entryPrice, 5)}</td><td>${fmt(t.stopLoss, 5)}</td><td>${fmt(t.takeProfit, 5)}</td>
+    <td class="${pnlClass(t.unrealizedPnl || 0)}">${fmt(t.unrealizedPnl)}</td></tr>`).join('');
+
+  $('decisions').innerHTML = (s.decisions || []).map((d) => `
+    <div><b class="${d.approved ? 'pos' : 'neg'}">${d.approved ? 'APPROVED' : 'rejected'}</b>
+    <b>${d.signal.symbol} ${d.signal.direction}</b> conf ${d.confidence} — ${(d.reasons || []).join('; ')}</div>`).join('')
+    || '<div>No decisions yet.</div>';
+
+  const l = s.learning || {};
+  $('health').innerHTML = `
+    <div class="stat-row" style="margin-bottom:10px">
+      <div class="stat"><div class="v">${md.instruments ?? '—'}</div><div class="l">watched</div></div>
+      <div class="stat"><div class="v">${s.instrumentsAvailable}</div><div class="l">available</div></div>
+      <div class="stat"><div class="v">${s.execution?.executed ?? 0}</div><div class="l">executed</div></div>
+      <div class="stat"><div class="v">${l.totalRecords ?? 0}</div><div class="l">learned</div></div>
+      <div class="stat"><div class="v">${l.totalRecords ? (l.winRate * 100).toFixed(0) + '%' : '—'}</div><div class="l">learn WR</div></div>
+    </div>
+    <div class="muted">Sessions: ${(s.session?.active || []).join(', ') || 'none'}${s.session?.overlap ? ' (LDN/NY overlap)' : ''}</div>
+    <div class="muted">Do-Not-Trade: ${(s.doNotTrade || []).join(', ') || 'none'}</div>
+    <div class="muted">News (48h): ${(s.news || []).map((n) => `${n.title} [${n.currency}/${n.impact}]`).join(' · ') || 'none scheduled'}</div>
+    <div class="muted">Tripped rules: ${(s.safety.trippedRules || []).map((r) => r.rule).join(', ') || 'none'}</div>`;
+}
+
+async function refresh() {
+  try {
+    state = await (await fetch('/api/state')).json();
+    render();
+    const j = await (await fetch('/api/journal?n=40')).json();
+    $('journal').innerHTML = j.slice().reverse().map((e) => `
+      <div><b>${e.type}</b> ${new Date(e.ts).toLocaleTimeString()} — ${summarize(e)}</div>`).join('')
+      || '<div>Journal empty.</div>';
+  } catch (e) {
+    $('healthBadge').textContent = 'backend unreachable';
+    $('healthBadge').className = 'badge bad';
+  }
+}
+
+function summarize(e) {
+  const d = e.data || {};
+  if (e.type === 'decision') return `${d.symbol} ${d.direction} ${d.approved ? 'APPROVED' : 'rejected'} (${d.confidence})`;
+  if (e.type === 'trade_opened') return `${d.direction} ${d.units} ${d.symbol} @ ${d.entryPrice}`;
+  if (e.type === 'trade_closed') return `${d.symbol} pnl ${d.pnl} (${d.closeReason})`;
+  if (e.type === 'command') return `${d.action} via ${d.source}`;
+  return JSON.stringify(d).slice(0, 90);
+}
+
+// --- SSE live updates + browser notifications ---
+function connectSSE() {
+  const es = new EventSource('/events');
+  es.addEventListener('alert', (ev) => {
+    const a = JSON.parse(ev.data);
+    toast(`${a.title}${a.body ? ' — ' + a.body : ''}`, a.severity);
+    if (Notification.permission === 'granted' && ['critical', 'error', 'warning'].includes(a.severity)) {
+      new Notification('KYNGPYN: ' + a.title, { body: a.body });
+    }
+  });
+  ['scanner:cycle', 'decision', 'trade:opened', 'trade:closed', 'safety:killswitch', 'safety:tripped', 'council:votes']
+    .forEach((ev) => es.addEventListener(ev, () => refresh()));
+  es.onerror = () => { es.close(); setTimeout(connectSSE, 5000); };
+}
+if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission();
+connectSSE();
+
+// --- Voice: "Doris ..." via Web Speech API ---
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+const voiceBtn = $('voiceBtn');
+if (!SR) {
+  voiceBtn.onclick = () => {
+    const t = prompt('Voice not supported in this browser. Type a command (e.g. "Doris scan markets"):');
+    if (t) sendVoice(t);
+  };
+} else {
+  let rec = null;
+  voiceBtn.onclick = () => {
+    if (rec) { rec.stop(); return; }
+    rec = new SR();
+    rec.lang = 'en-US';
+    rec.interimResults = false;
+    voiceBtn.classList.add('listening');
+    voiceBtn.textContent = '🎤 Listening…';
+    rec.onresult = (e) => sendVoice(e.results[0][0].transcript);
+    rec.onend = () => { rec = null; voiceBtn.classList.remove('listening'); voiceBtn.textContent = '🎤 Doris'; };
+    rec.onerror = () => toast('Voice recognition error', 'warning');
+    rec.start();
+  };
+}
+async function sendVoice(transcript) {
+  toast('Heard: "' + transcript + '"');
+  const res = await fetch('/api/command/voice', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ transcript }),
+  });
+  const data = await res.json();
+  toast(data.message || 'Done', data.ok ? 'info' : 'warning');
+  if ('speechSynthesis' in window && data.message) {
+    speechSynthesis.speak(new SpeechSynthesisUtterance(data.message));
+  }
+  refresh();
+}
+
+refresh();
+setInterval(refresh, 10000);
+</script>
+</body>
+</html>

@@ -1,0 +1,24 @@
+services:
+  kyngpyn:
+    build: .
+    container_name: kyngpyn
+    restart: unless-stopped
+    ports:
+      - "8420:8420"
+    environment:
+      TRADING_MODE: ${TRADING_MODE:-simulation}
+      OANDA_API_KEY: ${OANDA_API_KEY:-}
+      OANDA_ACCOUNT_ID: ${OANDA_ACCOUNT_ID:-}
+      OANDA_ENV: ${OANDA_ENV:-practice}
+      SCAN_INTERVAL_MS: ${SCAN_INTERVAL_MS:-15000}
+      DAILY_MAX_LOSS_PCT: ${DAILY_MAX_LOSS_PCT:-3}
+      MAX_OPEN_POSITIONS: ${MAX_OPEN_POSITIONS:-5}
+      ALERT_WEBHOOK_URL: ${ALERT_WEBHOOK_URL:-}
+      # Live trading additionally requires (deliberately not defaulted):
+      # LIVE_TRADING_ENABLED: "true"
+      # LIVE_CONFIRMATION: "I UNDERSTAND LIVE TRADING RISKS"
+    volumes:
+      - kyngpyn-data:/data
+
+volumes:
+  kyngpyn-data:
